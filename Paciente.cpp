@@ -24,11 +24,13 @@ class Paciente {
         ALTA_HOSPITALAR = 14
     };
 
+public:
     void lerDados();
     void getTempo();
     void getId();   
     void getProcedimentos();
     void getAlta();
+    int getPrioridade();
 
     void getStatus(); // getStatus inicial sempre será 1 = não chegou ao hospital
     void setStatus();

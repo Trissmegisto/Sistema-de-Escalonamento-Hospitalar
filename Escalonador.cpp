@@ -1,6 +1,5 @@
 #include <vector>
-#include "Paciente.cpp"
-#include "Procedimento.cpp"
+#include "Fila.cpp"
 
 class Evento {
 private:

@@ -25,7 +25,7 @@ public:
 
 class Escalonador {
 private:
-    std::vector<Evento> heap;
+    std::vector<Evento> eventos;
     double tempoInicial;     // Tempo de referência para conversão
     double tempoAtual;       // Tempo atual da simulação
     int eventosProcessados;  // Estatística: número total de eventos processados
@@ -34,8 +34,8 @@ private:
     void subir(int i) {
         while (i > 0) {
             int pai = (i - 1) / 2;
-            if (heap[pai] > heap[i]) {
-                std::swap(heap[pai], heap[i]);
+            if (eventos[pai] > eventos[i]) {
+                std::swap(eventos[pai], eventos[i]);
                 i = pai;
             } else {
                 break;
@@ -47,17 +47,17 @@ private:
         int menor;
         int esq = 2 * i + 1;
         int dir = 2 * i + 2;
-        int n = heap.size();
+        int n = eventos.size();
 
         while (esq < n) {
-            if (dir < n && heap[dir].getDataHora() < heap[esq].getDataHora()) {
+            if (dir < n && eventos[dir].getDataHora() < eventos[esq].getDataHora()) {
                 menor = dir;
             } else {
                 menor = esq;
             }
 
-            if (heap[i] > heap[menor]) {
-                std::swap(heap[i], heap[menor]);
+            if (eventos[i] > eventos[menor]) {
+                std::swap(eventos[i], eventos[menor]);
                 i = menor;
                 esq = 2 * i + 1;
                 dir = 2 * i + 2;
@@ -79,31 +79,31 @@ public:
     // Construtor
     Escalonador(double _tempoInicial = 0.0) 
         : tempoInicial(_tempoInicial), tempoAtual(_tempoInicial), eventosProcessados(0) {
-        heap.reserve(1000); // Reserva espaço inicial para 1000 eventos
+        eventos.reserve(1000); // Reserva espaço inicial para 1000 eventos
     }
 
     // Inicializa o escalonador
     void inicializa() {
-        heap.clear();
+        eventos.clear();
         tempoAtual = tempoInicial;
         eventosProcessados = 0;
     }
 
     // Insere um novo evento
     void insereEvento(double dataHora, int tipo, Paciente* paciente, const std::string& procedimento = "") {
-        heap.push_back(Evento(dataHora, tipo, paciente, procedimento));
-        subir(heap.size() - 1);
+        eventos.push_back(Evento(dataHora, tipo, paciente, procedimento));
+        subir(eventos.size() - 1);
     }
 
     // Retira e retorna o próximo evento
     Evento* retiraProximoEvento() {
-        if (heap.empty()) return nullptr;
+        if (eventos.empty()) return nullptr;
 
-        Evento* proximo = new Evento(heap[0]);
-        heap[0] = heap.back();
-        heap.pop_back();
+        Evento* proximo = new Evento(eventos[0]);
+        eventos[0] = eventos.back();
+        eventos.pop_back();
         
-        if (!heap.empty()) {
+        if (!eventos.empty()) {
             descer(0);
         }
 
@@ -116,11 +116,11 @@ public:
     void finaliza(int& totalEventos, double& tempoTotal) {
         totalEventos = eventosProcessados;
         tempoTotal = tempoAtual - tempoInicial;
-        heap.clear();
+        eventos.clear();
     }
 
     // Getters
     double getTempoAtual() const { return tempoAtual; }
-    bool vazio() const { return heap.empty(); }
-    int tamanho() const { return heap.size(); }
+    bool vazio() const { return eventos.empty(); }
+    int tamanho() const { return eventos.size(); }
 };

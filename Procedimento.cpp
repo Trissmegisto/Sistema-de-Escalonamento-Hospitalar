@@ -178,12 +178,12 @@ public:
     // Construtor
     GerenciadorProcedimentos() : numProcedimentos(6) {
         procedimentos = new Procedimento*[numProcedimentos];
-        procedimentos[0] = new Procedimento("Triagem", 0.2, 0);
-        procedimentos[1] = new Procedimento("Atendimento", 0.5, 0);
-        procedimentos[2] = new Procedimento("Medidas", 0.1, 0);
-        procedimentos[3] = new Procedimento("Testes", 0.05, 0);
-        procedimentos[4] = new Procedimento("Imagem", 0.5, 0);
-        procedimentos[5] = new Procedimento("Instrumentos/Medicamentos", 0.05, 0);
+        procedimentos[0] = new Procedimento("Triagem", 0, 0);
+        procedimentos[1] = new Procedimento("Atendimento", 0, 0);
+        procedimentos[2] = new Procedimento("Medidas", 0, 0);
+        procedimentos[3] = new Procedimento("Testes", 0, 0);
+        procedimentos[4] = new Procedimento("Imagem", 0, 0);
+        procedimentos[5] = new Procedimento("Instrumentos/Medicamentos", 0, 0);
     }
     
     // Destrutor
@@ -195,10 +195,10 @@ public:
     }
     
     // Define o número de unidades para um procedimento
-    void setNumeroUnidades(const std::string& nome, int numeroUnidades) {
+    void setNumeroUnidades(const std::string& nome, double tempo, int numeroUnidades) {
         for(int i = 0; i < numProcedimentos; i++) {
             if(procedimentos[i]->getNome() == nome) {
-                Procedimento* novo = new Procedimento(nome, procedimentos[i]->getTempoMedio(), numeroUnidades);
+                Procedimento* novo = new Procedimento(nome, tempo, numeroUnidades);
                 delete procedimentos[i];
                 procedimentos[i] = novo;
                 break;

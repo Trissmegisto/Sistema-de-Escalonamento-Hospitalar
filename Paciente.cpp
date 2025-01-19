@@ -1,5 +1,4 @@
 #include <string>
-#include <ctime>
 
 class Paciente {
 private:
@@ -153,6 +152,11 @@ public:
     double getTempoTotalEspera() const { return tempoTotalEspera; }
     double getTempoTotalAtendimento() const { return tempoTotalAtendimento; }
     double getTempoPermanencia() const { return tempoSaida - tempoChegada; }
+
+    int getQuantidadeMedidasHospitalares() const { return medidasHospitalares; }
+    int getQuantidadeTestesLaboratorio() const { return testesLaboratorio; }
+    int getQuantidadeExamesImagem() const { return examesImagem; }
+    int getQuantidadeInstrumentosMedicamentos() const { return instrumentosMedicamentos; }
 
     void setEstadoAtual(int novoEstado) { estadoAtual = novoEstado; }
 

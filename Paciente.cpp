@@ -1,40 +1,166 @@
+#include <string>
+#include <ctime>
+
 class Paciente {
-    int id, alta, ano, mes, dia, hora, prioridade, numTestesDeLaboratorio, numExamesDeImagem, numMedicamentos;
-    int horarioDoAtendimento;
-    int tempoNaFila;
-    int procedimentos;
+private:
+    // Informações do prontuário
+    int id;
+    bool alta;
+    int ano;
+    int mes;
+    int dia;
+    int hora;
+    int grau;  // 0-Verde, 1-Amarelo, 2-Vermelho
+    
+    // Quantidade de procedimentos necessários
+    int medidasHospitalares;
+    int testesLaboratorio;
+    int examesImagem;
+    int instrumentosMedicamentos;
+    
+    // Estado atual do paciente
+    int estadoAtual;
+    
+    // Tempos e estatísticas
+    double tempoChegada;           // Momento que chegou ao hospital
+    double tempoUltimaTransicao;   // Última vez que mudou de estado
+    double tempoTotalEspera;       // Tempo total em filas
+    double tempoTotalAtendimento;  // Tempo total sendo atendido
+    double tempoSaida;             // Momento que saiu do hospital
+    
+    // Histórico de atendimentos usando lista encadeada
+    struct RegistroAtendimento {
+        std::string procedimento;
+        double inicio;
+        double fim;
+        bool emEspera;  // true se está na fila, false se está sendo atendido
+        RegistroAtendimento* proximo;
+        
+        RegistroAtendimento(const std::string& proc, double ini, bool espera)
+            : procedimento(proc), inicio(ini), fim(0), emEspera(espera), proximo(nullptr) {}
+    };
+    
+    RegistroAtendimento* primeiroRegistro;
+    RegistroAtendimento* ultimoRegistro;
 
-    // Tempos
-    int tempo_atual, tempo_ocioso, tempo_atendido, data_chegada;
-
-    enum EstadoHospitalar {
-        NAO_CHEGOU_AO_HOSPITAL = 1,
-        NA_FILA_DE_TRIAGEM = 2,
+public:
+    // Enumeração dos estados possíveis
+    enum Estado {
+        NAO_CHEGOU = 1,
+        FILA_TRIAGEM = 2,
         SENDO_TRIADO = 3,
-        NA_FILA_DE_ATENDIMENTO = 4,
+        FILA_ATENDIMENTO = 4,
         SENDO_ATENDIDO = 5,
-        NA_FILA_DE_MEDIDAS_HOSPITALARES = 6,
-        REALIZANDO_MEDIDAS_HOSPITALARES = 7,
-        NA_FILA_DE_TESTES_DE_LABORATORIO = 8,
-        REALIZANDO_TESTES_DE_LABORATORIO = 9,
-        NA_FILA_DE_EXAMES_DE_IMAGEM = 10,
-        REALIZANDO_EXAMES_DE_IMAGEM = 11,
-        NA_FILA_PARA_INSTRUMENTOS_MEDICAMENTOS = 12,
-        SENDO_APLICADOS_INSTRUMENTOS_MEDICAMENTOS = 13,
+        FILA_MEDIDAS = 6,
+        REALIZANDO_MEDIDAS = 7,
+        FILA_TESTES = 8,
+        REALIZANDO_TESTES = 9,
+        FILA_EXAMES = 10,
+        REALIZANDO_EXAMES = 11,
+        FILA_INSTRUMENTOS = 12,
+        RECEBENDO_INSTRUMENTOS = 13,
         ALTA_HOSPITALAR = 14
     };
 
-public:
-    void lerDados();
-    void getTempo();
-    void getId();   
-    void getProcedimentos();
-    void getAlta();
-    int getPrioridade();
+    // Construtor
+    Paciente(int _id, bool _alta, int _ano, int _mes, int _dia, int _hora, 
+             int _grau, int _medidas, int _testes, int _exames, int _instrumentos)
+        : id(_id), alta(_alta), ano(_ano), mes(_mes), dia(_dia), hora(_hora),
+          grau(_grau), medidasHospitalares(_medidas), testesLaboratorio(_testes),
+          examesImagem(_exames), instrumentosMedicamentos(_instrumentos),
+          estadoAtual(NAO_CHEGOU), tempoChegada(0), tempoUltimaTransicao(0),
+          tempoTotalEspera(0), tempoTotalAtendimento(0), tempoSaida(0),
+          primeiroRegistro(nullptr), ultimoRegistro(nullptr) {}
 
-    void getStatus(); // getStatus inicial sempre será 1 = não chegou ao hospital
-    void setStatus();
+    // Destrutor
+    ~Paciente() {
+        RegistroAtendimento* atual = primeiroRegistro;
+        while (atual != nullptr) {
+            RegistroAtendimento* proximo = atual->proximo;
+            delete atual;
+            atual = proximo;
+        }
+    }
 
-    Paciente();
-    Paciente(int id, int alta, int ano, int mes, int dia, int hora, int prioridade, int numTestesDeLaboratorio, int numExamesDeImagem, int numMedicamentos);
+    // Adiciona um novo registro ao histórico
+    void adicionarRegistro(const std::string& procedimento, double inicio, bool emEspera) {
+        RegistroAtendimento* novoRegistro = new RegistroAtendimento(procedimento, inicio, emEspera);
+        
+        if (primeiroRegistro == nullptr) {
+            primeiroRegistro = novoRegistro;
+            ultimoRegistro = novoRegistro;
+        } else {
+            ultimoRegistro->proximo = novoRegistro;
+            ultimoRegistro = novoRegistro;
+        }
+    }
+
+    // Métodos para transição de estado
+    void iniciarAtendimento(const std::string& procedimento, double tempoAtual) {
+        if (tempoChegada == 0) tempoChegada = tempoAtual;
+        
+        // Registra fim do estado anterior se estava em espera
+        if (ultimoRegistro != nullptr && ultimoRegistro->emEspera) {
+            ultimoRegistro->fim = tempoAtual;
+            tempoTotalEspera += (tempoAtual - ultimoRegistro->inicio);
+        }
+        
+        // Registra novo atendimento
+        adicionarRegistro(procedimento, tempoAtual, false);
+        tempoUltimaTransicao = tempoAtual;
+    }
+
+    void entrarFila(const std::string& procedimento, double tempoAtual) {
+        if (tempoChegada == 0) tempoChegada = tempoAtual;
+        
+        // Registra fim do atendimento anterior
+        if (ultimoRegistro != nullptr && !ultimoRegistro->emEspera) {
+            ultimoRegistro->fim = tempoAtual;
+            tempoTotalAtendimento += (tempoAtual - ultimoRegistro->inicio);
+        }
+        
+        // Registra entrada na fila
+        adicionarRegistro(procedimento, tempoAtual, true);
+        tempoUltimaTransicao = tempoAtual;
+    }
+
+    void finalizarAtendimento(double tempoAtual) {
+        if (ultimoRegistro != nullptr) {
+            ultimoRegistro->fim = tempoAtual;
+            if (ultimoRegistro->emEspera) {
+                tempoTotalEspera += (tempoAtual - ultimoRegistro->inicio);
+            } else {
+                tempoTotalAtendimento += (tempoAtual - ultimoRegistro->inicio);
+            }
+        }
+        tempoSaida = tempoAtual;
+        estadoAtual = ALTA_HOSPITALAR;
+    }
+
+    // Métodos para verificar necessidade de procedimentos
+    bool precisaMedidasHospitalares() const { return medidasHospitalares > 0; }
+    bool precisaTestesLaboratorio() const { return testesLaboratorio > 0; }
+    bool precisaExamesImagem() const { return examesImagem > 0; }
+    bool precisaInstrumentosMedicamentos() const { return instrumentosMedicamentos > 0; }
+    bool precisaAlta() const { return alta; }
+
+    // Getters
+    int getId() const { return id; }
+    int getPrioridade() const { return grau; }
+    int getEstadoAtual() const { return estadoAtual; }
+    double getTempoChegada() const { return tempoChegada; }
+    double getTempoSaida() const { return tempoSaida; }
+    double getTempoTotalEspera() const { return tempoTotalEspera; }
+    double getTempoTotalAtendimento() const { return tempoTotalAtendimento; }
+    double getTempoPermanencia() const { return tempoSaida - tempoChegada; }
+
+    void setEstadoAtual(int novoEstado) { estadoAtual = novoEstado; }
+
+    // Método para decrementar contadores de procedimentos
+    void decrementarProcedimento(const std::string& procedimento) {
+        if (procedimento == "Medidas") medidasHospitalares--;
+        else if (procedimento == "Testes") testesLaboratorio--;
+        else if (procedimento == "Imagem") examesImagem--;
+        else if (procedimento == "Instrumentos/Medicamentos") instrumentosMedicamentos--;
+    }
 };

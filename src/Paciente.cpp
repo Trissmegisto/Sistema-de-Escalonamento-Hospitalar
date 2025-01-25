@@ -1,3 +1,4 @@
+#include <stdexcept>
 #include <string>
 
 class Paciente {
@@ -8,7 +9,7 @@ private:
     int ano;
     int mes;
     int dia;
-    int hora;
+    double hora;
     int grau;  // 0-Verde, 1-Amarelo, 2-Vermelho
     
     // Quantidade de procedimentos necessários
@@ -125,7 +126,9 @@ public:
     }
 
     void entrarFila(const std::string& procedimento, double tempoAtual) {
-        if (tempoChegada == 0) tempoChegada = tempoAtual;
+        if (tempoChegada == 0) {
+            tempoChegada = tempoAtual;
+        }
         
         // Registra fim do atendimento anterior se estava sendo atendido
         if (ultimoRegistro != nullptr && !ultimoRegistro->emEspera) {
@@ -141,7 +144,7 @@ public:
         else if (procedimento == "Imagem") estadoAtual = FILA_EXAMES;
         else if (procedimento == "Instrumentos/Medicamentos") estadoAtual = FILA_INSTRUMENTOS;
         
-        // Registra entrada na fila
+        // Sempre registra entrada na fila
         adicionarRegistro(procedimento, tempoAtual, true);
         tempoUltimaTransicao = tempoAtual;
     }
@@ -178,10 +181,10 @@ public:
     double getTempoTotalAtendimento() const { return tempoTotalAtendimento; }
     double getTempoPermanencia() const { return tempoSaida - tempoChegada; }
     
-    int getAno() const { return ano; }
-    int getMes() const { return mes; }
-    int getDia() const { return dia; }
-    int getHora() const { return hora; }
+    int getAnoChegado() const { return ano; }
+    int getMesChegado() const { return mes; }
+    int getDiaChegado() const { return dia; }
+    int getHoraChegada() const { return hora; }
 
     int getQuantidadeMedidasHospitalares() const { return medidasHospitalares; }
     int getQuantidadeTestesLaboratorio() const { return testesLaboratorio; }
@@ -196,5 +199,53 @@ public:
         else if (procedimento == "Testes") testesLaboratorio--;
         else if (procedimento == "Imagem") examesImagem--;
         else if (procedimento == "Instrumentos/Medicamentos") instrumentosMedicamentos--;
+    }
+};
+
+class PacienteArray {
+private:
+    Paciente** data;
+    int capacity;
+    int size_;
+
+public:
+    PacienteArray(int initialCapacity = 1000) : capacity(initialCapacity), size_(0) {
+        data = new Paciente*[capacity];
+    }
+
+    ~PacienteArray() {
+        for (int i = 0; i < size_; i++) {
+            delete data[i];
+        }
+        delete[] data;
+    }
+
+    void push_back(Paciente* paciente) {
+        if (size_ == capacity) {
+            int newCapacity = capacity * 2;
+            Paciente** newData = new Paciente*[newCapacity];
+            
+            for (int i = 0; i < size_; i++) {
+                newData[i] = data[i];
+            }
+            
+            delete[] data;
+            data = newData;
+            capacity = newCapacity;
+        }
+        
+        data[size_] = paciente;
+        size_++;
+    }
+
+    Paciente* operator[](int index) {
+        if (index < 0 || index >= size_) {
+            throw std::out_of_range("Index out of bounds");
+        }
+        return data[index];
+    }
+
+    int size() const {
+        return size_;
     }
 };

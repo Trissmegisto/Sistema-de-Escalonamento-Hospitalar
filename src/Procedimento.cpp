@@ -167,6 +167,16 @@ public:
         }
         return 0;
     }
+
+    // Retorna o índice da unidade ocupada por um paciente específico
+    int getUnidadeOcupada(int pacienteId) const {
+        for(int i = 0; i < numeroUnidades; i++) {
+            if(unidades[i].ocupada && unidades[i].pacienteId == pacienteId) {
+                return i;
+            }
+        }
+        return -1;
+    }
 };
 
 class GerenciadorProcedimentos {

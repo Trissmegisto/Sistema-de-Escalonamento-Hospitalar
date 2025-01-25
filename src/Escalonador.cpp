@@ -93,6 +93,34 @@ public:
     int size() const {
         return size_;
     }
+
+    Evento* get_pointer(int index) {
+        if (index < 0 || index >= size_) {
+            throw std::out_of_range("Index out of bounds");
+        }
+        return data[index];
+    }
+
+    void swap(int i, int j) {
+        Evento* temp = data[i];
+        data[i] = data[j];
+        data[j] = temp;
+    }
+
+    void remove_at(int index) {
+        if (index < 0 || index >= size_) {
+            throw std::out_of_range("Index out of bounds");
+        }
+        delete data[index];
+        data[index] = data[size_ - 1];
+        size_--;
+    }
+
+    void decrease_size() {
+        if (size_ > 0) {
+            size_--;
+        }
+    }
 };
 
 class Escalonador {
@@ -166,9 +194,13 @@ public:
     Evento* retiraProximoEvento() {
         if (eventos.empty()) return nullptr;
 
-        Evento* proximo = new Evento(eventos[0]);
-        eventos[0] = eventos.back();
-        eventos.pop_back();
+        Evento* proximo = eventos.get_pointer(0);
+        
+        if (eventos.size() > 1) {
+            eventos.swap(0, eventos.size() - 1);
+        }
+        
+        eventos.decrease_size();
         
         if (!eventos.empty()) {
             descer(0);

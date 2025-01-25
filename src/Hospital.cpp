@@ -6,54 +6,6 @@
 
 using namespace std;
 
-class PacienteArray {
-private:
-    Paciente** data;
-    int capacity;
-    int size_;
-
-public:
-    PacienteArray(int initialCapacity = 1000) : capacity(initialCapacity), size_(0) {
-        data = new Paciente*[capacity];
-    }
-
-    ~PacienteArray() {
-        for (int i = 0; i < size_; i++) {
-            delete data[i];
-        }
-        delete[] data;
-    }
-
-    void push_back(Paciente* paciente) {
-        if (size_ == capacity) {
-            int newCapacity = capacity * 2;
-            Paciente** newData = new Paciente*[newCapacity];
-            
-            for (int i = 0; i < size_; i++) {
-                newData[i] = data[i];
-            }
-            
-            delete[] data;
-            data = newData;
-            capacity = newCapacity;
-        }
-        
-        data[size_] = paciente;
-        size_++;
-    }
-
-    Paciente* operator[](int index) {
-        if (index < 0 || index >= size_) {
-            throw std::out_of_range("Index out of bounds");
-        }
-        return data[index];
-    }
-
-    int size() const {
-        return size_;
-    }
-};
-
 class Hospital {
 private:
     GerenciadorFilas* gerenciadorFilas;
@@ -62,7 +14,6 @@ private:
     PacienteArray pacientes;
 
     double relogio;
-
 
     struct Config {
         double tempo;
@@ -85,7 +36,7 @@ private:
         
         // std::cout << "Processando evento para paciente " << paciente->getId() 
         //         << " no tempo " << tempoAtual 
-        //         << "h, tipo: " << evento->getTipo() << std::endl;
+        //         << "h, tipo: " << evento->getTipo() << std::endl << std::endl;
         
         switch(evento->getTipo()) {
             case Escalonador::CHEGADA_PACIENTE:
@@ -106,6 +57,11 @@ private:
                 break;
         }
         
+        // Só verifica as filas após chegada ou fim de procedimento
+        if (evento->getTipo() != Escalonador::INICIO_PROCEDIMENTO) {
+            verificaFilasEEscalona(tempoAtual);
+        }
+        
         delete evento;
     }
 
@@ -117,7 +73,7 @@ private:
         // Coloca o paciente na fila de triagem
         Fila* filaTriagem = gerenciadorFilas->getFila("Triagem", paciente->getPrioridade());
         if (filaTriagem == nullptr) {
-            std::cout << "ERRO: Fila de triagem não encontrada!\n";
+            // std::cout << "ERRO: Fila de triagem não encontrada!\n";
             return;
         }
         
@@ -134,30 +90,110 @@ private:
         int unidadeDisponivel = proc->getUnidadeDisponivel(tempoAtual);
         
         if(unidadeDisponivel >= 0) {
+            // Primeiro ocupa a unidade
             proc->ocuparUnidade(unidadeDisponivel, tempoAtual, paciente->getId(), paciente->getEstadoAtual());
+            
+            // Depois inicia o atendimento do paciente
             paciente->iniciarAtendimento(nomeProcedimento, tempoAtual);
             
             // Agenda o fim do procedimento
             double tempoFim = tempoAtual + proc->getTempoMedio();
             escalonador->insereEvento(tempoFim, Escalonador::FIM_PROCEDIMENTO, paciente, nomeProcedimento);
+            
+            std::cout << "Iniciando " << nomeProcedimento << " para paciente " << paciente->getId() 
+                     << " no tempo " << tempoAtual << std::endl;
+        } else {
+            std::cout << "Não há unidade disponível para o procedimento " << nomeProcedimento 
+                     << " para o paciente " << paciente->getId() 
+                     << " no tempo " << tempoAtual << std::endl;
+            
+            // Se não há unidade disponível, coloca o paciente de volta na fila
+            Fila* fila = gerenciadorFilas->getFila(nomeProcedimento, paciente->getPrioridade());
+            if (fila && !fila->contemPaciente(paciente)) {
+                // Não registrar novo tempo de espera ao retornar para a fila
+                fila->enfileira(paciente, tempoAtual);
+                
+                // Agenda uma nova tentativa após um intervalo
+                double proximaTentativa = tempoAtual;
+                escalonador->insereEvento(proximaTentativa, Escalonador::INICIO_PROCEDIMENTO, 
+                                        paciente, nomeProcedimento);
+            }
+            
+            return;
         }
     }
 
     void processaFimProcedimento(Paciente* paciente, double tempoAtual, const std::string& nomeProcedimento) {
+        std::cout << "Fim do procedimento " << nomeProcedimento 
+                  << " para paciente " << paciente->getId()
+                  << " no tempo " << tempoAtual 
+                  << " (Tempo total atendimento até agora: " << paciente->getTempoTotalAtendimento() 
+                  << ", Procedimentos restantes: "
+                  << "Medidas=" << paciente->precisaMedidasHospitalares()
+                  << ", Testes=" << paciente->precisaTestesLaboratorio()
+                  << ", Imagem=" << paciente->precisaExamesImagem()
+                  << ", Instrumentos=" << paciente->precisaInstrumentosMedicamentos()
+                  << ")" << std::endl;    
+
         // Decrementa o contador do procedimento realizado
         paciente->decrementarProcedimento(nomeProcedimento);
         
-        // Verifica próximo procedimento necessário
-        if(paciente->precisaMedidasHospitalares()) {
-            encaminhaParaFila(paciente, "Medidas", tempoAtual);
-        } else if(paciente->precisaTestesLaboratorio()) {
-            encaminhaParaFila(paciente, "Testes", tempoAtual);
-        } else if(paciente->precisaExamesImagem()) {
-            encaminhaParaFila(paciente, "Imagem", tempoAtual);
-        } else if(paciente->precisaInstrumentosMedicamentos()) {
-            encaminhaParaFila(paciente, "Instrumentos/Medicamentos", tempoAtual);
-        } else if(paciente->precisaAlta()) {
-            paciente->finalizarAtendimento(tempoAtual);
+        // Adiciona verificação específica para triagem
+        if(nomeProcedimento == "Triagem") {
+            encaminhaParaFila(paciente, "Atendimento", tempoAtual);
+        }
+        // Após atendimento, verifica se precisa alta
+        else if(nomeProcedimento == "Atendimento") {
+            if(paciente->precisaAlta()) {
+                // Garante que o tempo do atendimento seja contabilizado antes da alta
+                paciente->finalizarAtendimento(tempoAtual);
+                std::cout << "Alta do paciente " << paciente->getId() 
+                          << " no tempo " << tempoAtual 
+                          << "\nTempo total de atendimento: " << paciente->getTempoTotalAtendimento() 
+                          << "\nTempo total de espera: " << paciente->getTempoTotalEspera() 
+                          << "\nProcedimentos realizados: Triagem, Atendimento" << std::endl;
+                return;
+            }
+            // Se não precisa alta, continua para o próximo procedimento disponível
+            if(paciente->precisaMedidasHospitalares()) {
+                encaminhaParaFila(paciente, "Medidas", tempoAtual);
+            } else if(paciente->precisaTestesLaboratorio()) {
+                encaminhaParaFila(paciente, "Testes", tempoAtual);
+            } else if(paciente->precisaExamesImagem()) {
+                encaminhaParaFila(paciente, "Imagem", tempoAtual);
+            } else if(paciente->precisaInstrumentosMedicamentos()) {
+                encaminhaParaFila(paciente, "Instrumentos/Medicamentos", tempoAtual);
+            }
+        }
+        // Para outros procedimentos, verifica se precisa retornar à mesma fila
+        else {
+            // Verifica se ainda precisa do mesmo procedimento
+            if(nomeProcedimento == "Medidas" && paciente->precisaMedidasHospitalares()) {
+                encaminhaParaFila(paciente, "Medidas", tempoAtual);
+            } else if(nomeProcedimento == "Testes" && paciente->precisaTestesLaboratorio()) {
+                encaminhaParaFila(paciente, "Testes", tempoAtual);
+            } else if(nomeProcedimento == "Imagem" && paciente->precisaExamesImagem()) {
+                encaminhaParaFila(paciente, "Imagem", tempoAtual);
+            } else if(nomeProcedimento == "Instrumentos/Medicamentos" && paciente->precisaInstrumentosMedicamentos()) {
+                encaminhaParaFila(paciente, "Instrumentos/Medicamentos", tempoAtual);
+            }
+            // Se não precisa mais do procedimento atual, verifica o próximo
+            else if(paciente->precisaMedidasHospitalares()) {
+                encaminhaParaFila(paciente, "Medidas", tempoAtual);
+            } else if(paciente->precisaTestesLaboratorio()) {
+                encaminhaParaFila(paciente, "Testes", tempoAtual);
+            } else if(paciente->precisaExamesImagem()) {
+                encaminhaParaFila(paciente, "Imagem", tempoAtual);
+            } else if(paciente->precisaInstrumentosMedicamentos()) {
+                encaminhaParaFila(paciente, "Instrumentos/Medicamentos", tempoAtual);
+            } else {
+                paciente->finalizarAtendimento(tempoAtual);
+                std::cout << "Alta do paciente " << paciente->getId() 
+                          << " no tempo " << tempoAtual 
+                          << "\nTempo total de atendimento: " << paciente->getTempoTotalAtendimento() 
+                          << "\nTempo total de espera: " << paciente->getTempoTotalEspera() 
+                          << "\nProcedimentos realizados: " << nomeProcedimento << std::endl;
+            }
         }
         
         verificaFilasEEscalona(tempoAtual);
@@ -200,9 +236,9 @@ private:
         
         while(!fila->filaVazia() && proc->temUnidadeDisponivel(tempoAtual)) {
             Paciente* paciente = fila->desenfileira(tempoAtual);
-            // std::cout << "Escalonando início de " << proc->getNome() 
-            //         << " para paciente " << paciente->getId() 
-            //         << " no tempo " << tempoAtual << "\n";
+            std::cout << "Escalonando início de " << proc->getNome() 
+                    << " para paciente " << paciente->getId() 
+                    << " no tempo " << tempoAtual << "\n";
                     
             escalonador->insereEvento(tempoAtual, Escalonador::INICIO_PROCEDIMENTO, 
                                     paciente, proc->getNome());
@@ -256,10 +292,10 @@ public:
             Paciente* paciente = new Paciente(id, alta, ano, mes, dia, hora,
                                             grau, medidas, testes, imagem, instrumentos);
             
-            std::cout << "Criando evento de chegada para paciente " << id 
-                    << " no tempo " << paciente->getAno() << " " << paciente->getMes() << " " << paciente->getDia() << " " << paciente->getHora() << "\n";
+            // std::cout << "Criando evento de chegada para paciente " << id 
+            //         << " no tempo " << paciente->getAnoChegado() << " " << paciente->getMesChegado() << " " << paciente->getDiaChegado() << " " << paciente->getHoraChegada() << "\n";
                     
-            escalonador->insereEvento(paciente->getHora(), Escalonador::CHEGADA_PACIENTE, paciente);
+            escalonador->insereEvento(paciente->getHoraChegada(), Escalonador::CHEGADA_PACIENTE, paciente);
             pacientes.push_back(paciente);
         }
         
@@ -268,18 +304,13 @@ public:
         arquivo.close();
     }
     
-    void executaSimulacao() {
+    void executaSimulacao() {   
         std::cout << "Iniciando simulação\n";
 
         std::cout << "Número de eventos inicial: " << escalonador->tamanho() << "\n";
         
         while(!escalonador->vazio()) {
             Evento* evento = escalonador->retiraProximoEvento();
-            std::cout << "\nProcessando evento: "
-                    << "Nome do Evento= " << evento->getProcedimento()
-                    << "Tempo=" << evento->getDataHora()
-                    << ", Tipo=" << evento->getTipo()
-                    << ", Paciente=" << evento->getPaciente()->getId() << "\n";
             
             processaEvento(evento);
             
@@ -288,6 +319,48 @@ public:
         }
         
         std::cout << "Simulação finalizada\n";
+    }
+
+    std::string formatarTimestamp(long int timestamp) {
+        time_t tempo = static_cast<time_t>(timestamp);
+        struct tm* tm = localtime(&tempo);
+        char buffer[100];
+        strftime(buffer, sizeof(buffer), "%a %b %-d %H:%M:%S %Y", tm);
+        return std::string(buffer);
+    }
+    
+    void geraRelatorio() {
+        for (int i = 0; i < pacientes.size(); i++) {
+            Paciente* paciente = pacientes[i];
+            
+            // Get admission time components
+            tm admissionTime = {};
+            time_t admissionSeconds = (paciente->getHoraChegada()) * 3600 - 71760 + // hours to seconds
+                                    paciente->getDiaChegado() * 24 * 3600 + // days to seconds
+                                    (paciente->getMesChegado() - 2) * 30 * 24 * 3600 + // months to seconds (approximate)
+                                    (paciente->getAnoChegado() + 73) * 365 * 24 * 3600; // years to seconds
+
+            formatarTimestamp(admissionSeconds);
+                        
+            // Get discharge time
+            double totalTime = paciente->getTempoTotalEspera() + paciente->getTempoTotalAtendimento();
+            // time_t dischargeSeconds = admissionSeconds + (time_t)(totalTime * 3600);
+            // tm dischargeTime = *localtime(&dischargeSeconds);
+            
+            // // Format day names
+            // char admissionDay[4], dischargeDay[4];
+            // strftime(admissionDay, sizeof(admissionDay), "%a", &admissionTime);
+            // strftime(dischargeDay, sizeof(dischargeDay), "%a", &dischargeTime);
+            
+            // // Format month names
+            // char admissionMonth[4], dischargeMonth[4];
+            // strftime(admissionMonth, sizeof(admissionMonth), "%b", &admissionTime);
+            // strftime(dischargeMonth, sizeof(dischargeMonth), "%b", &dischargeTime);
+            
+            // Print formatted output
+            cout << paciente->getId() << " " << formatarTimestamp(admissionSeconds) << " " << totalTime << " " << paciente->getTempoTotalAtendimento() << " " <<
+            paciente->getTempoTotalEspera() << endl;
+        }
     }
 };
 
@@ -305,8 +378,10 @@ int main(int argc, char* argv[]) {
     
     std::cout << "Executando simulação\n";
     simulador.executaSimulacao();
-    
+
+    std::cout << "Gerando relatório\n";
+    simulador.geraRelatorio();
+
     std::cout << "Programa finalizado\n";
     return 0;
-}
-
+};

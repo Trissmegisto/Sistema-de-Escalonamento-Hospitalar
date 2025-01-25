@@ -153,6 +153,18 @@ public:
     Paciente* getProximoPaciente() const {
         return filaVazia() ? nullptr : inicio->paciente;
     }
+
+    // Verifica se um paciente específico já está na fila
+    bool contemPaciente(Paciente* paciente) const {
+        No* atual = inicio;
+        while (atual != nullptr) {
+            if (atual->paciente == paciente) {
+                return true;
+            }
+            atual = atual->proximo;
+        }
+        return false;
+    }
 };
 
 // Classe para gerenciar todas as filas do hospital
